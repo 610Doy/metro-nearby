@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>深圳地铁周边探索</title>
+<style>
+  :root {
+    --green: #00A54F; --blue: #005BAC; --bg: #f2f2f7;
+    --card: #fff; --text: #1d1d1f; --sec: #86868b; --border: #e5e5ea;
+    --shadow: 0 2px 12px rgba(0,0,0,0.06); --radius: 14px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #00A54F, #00c462);
+    padding: 28px 20px 44px; text-align: center; color: #fff; position: relative;
+  }
+  .header::after {
+    content:''; position:absolute; bottom:0; left:0; right:0; height:20px;
+    background:var(--bg); border-radius:20px 20px 0 0;
+  }
+  .header h1 { font-size:26px; font-weight:700; margin-bottom:4px; }
+  .header p { font-size:13px; opacity:0.85; }
+
+  /* Search */
+  .search-wrap { max-width:600px; margin:-18px auto 0; padding:0 16px; position:relative; z-index:10; }
+  .search-box {
+    display:flex; background:var(--card); border-radius:var(--radius);
+    box-shadow:0 4px 24px rgba(0,0,0,0.1); overflow:hidden;
+  }
+  .search-box input {
+    flex:1; border:none; padding:15px 16px; font-size:16px; outline:none;
+    background:transparent; color:var(--text);
+  }
+  .search-box input::placeholder { color:#c7c7cc; }
+  .search-box button {
+    border:none; background:var(--green); color:#fff; padding:15px 20px;
+    font-size:16px; font-weight:600; cursor:pointer; white-space:nowrap;
+    transition: background 0.2s;
+  }
+  .search-box button:hover { background:#008a43; }
+  .search-box button:disabled { background:#a0a0a0; cursor:not-allowed; }
+
+  /* Autocomplete */
+  .ac-drop {
+    position:absolute; top:100%; left:16px; right:16px; background:var(--card);
+    border-radius:0 0 var(--radius) var(--radius); box-shadow:0 8px 24px rgba(0,0,0,0.1);
+    max-height:300px; overflow-y:auto; display:none;
+  }
+  .ac-drop.on { display:block; }
+  .ac-item {
+    padding:13px 16px; cursor:pointer; display:flex; align-items:center; gap:8px;
+    border-bottom:1px solid var(--border); transition:background 0.15s;
+  }
+  .ac-item:last-child { border-bottom:none; }
+  .ac-item:hover { background:#f0f9f4; }
+  .ac-item .icon { font-size:18px; }
+  .ac-item .name { font-size:14px; font-weight:500; }
+  .ac-item .dist { font-size:12px; color:var(--sec); margin-left:auto; }
+
+  /* Loading */
+  .loading { text-align:center; padding:50px 20px; display:none; }
+  .loading.on { display:block; }
+  .spinner {
+    width:36px; height:36px; border:3px solid var(--border);
+    border-top-color:var(--green); border-radius:50%; animation:spin 0.8s linear infinite;
+    margin:0 auto 14px;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading p { color:var(--sec); font-size:14px; }
+
+  /* Error */
+  .err { text-align:center; padding:40px 20px; display:none; color:#e74c3c; }
+  .err.on { display:block; }
+
+  /* Results */
+  .results { max-width:800px; margin:0 auto; padding:16px; display:none; }
+  .results.on { display:block; }
+
+  .stn-card {
+    background:var(--card); border-radius:var(--radius); padding:18px;
+    margin-bottom:14px; box-shadow:var(--shadow); display:flex; align-items:center; gap:12px;
+  }
+  .stn-card .emoji { font-size:32px; }
+  .stn-card h2 { font-size:19px; }
+  .stn-card .addr { font-size:12px; color:var(--sec); margin-top:2px; }
+  .badges { margin-left:auto; display:flex; gap:6px; }
+  .badge {
+    padding:5px 10px; border-radius:16px; font-size:11px; font-weight:600; white-space:nowrap;
+  }
+  .badge.near { background:#e8f8ef; color:var(--green); }
+  .badge.around { background:#e8f0f8; color:var(--blue); }
+
+  /* Category pills */
+  .cat-pills {
+    display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:14px;
+    scroll-behavior:smooth; -webkit-overflow-scrolling:touch;
+  }
+  .cat-pills::-webkit-scrollbar { display:none; }
+  .pill {
+    padding:7px 14px; border-radius:18px; border:1.5px solid var(--border);
+    background:var(--card); font-size:13px; cursor:pointer; white-space:nowrap;
+    transition:all 0.2s; user-select:none;
+  }
+  .pill:hover { border-color:var(--green); }
+  .pill.on { background:var(--green); color:#fff; border-color:var(--green); }
+  .pill .n { font-size:11px; margin-left:3px; opacity:0.7; }
+
+  /* Category section */
+  .cat-sec { margin-bottom:20px; }
+  .cat-sec h3 { font-size:17px; font-weight:700; margin-bottom:10px; }
+
+  .zone-tag {
+    font-size:12px; font-weight:600; margin:10px 0 6px; padding:3px 8px;
+    border-radius:5px; display:inline-block;
+  }
+  .zone-tag.near { background:#e8f8ef; color:var(--green); }
+  .zone-tag.around { background:#e8f0f8; color:var(--blue); }
+
+  /* POI grid */
+  .poi-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:8px; }
+  .poi-card {
+    background:var(--card); border-radius:11px; padding:12px 14px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.05); display:flex; align-items:flex-start;
+    gap:8px; transition:transform 0.15s,box-shadow 0.15s;
+  }
+  .poi-card:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,0.08); }
+  .poi-card .p-emoji { font-size:20px; flex-shrink:0; }
+  .poi-card .p-info { flex:1; min-width:0; }
+  .poi-card .p-name { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .poi-card .p-addr { font-size:11px; color:var(--sec); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+  .poi-card .p-dist { flex-shrink:0; font-size:11px; font-weight:700; padding:3px 7px; border-radius:8px; white-space:nowrap; }
+  .poi-card .p-dist.near { background:#e8f8ef; color:var(--green); }
+  .poi-card .p-dist.around { background:#e8f0f8; color:var(--blue); }
+
+  .empty { text-align:center; padding:24px; color:#c7c7cc; font-size:13px; }
+
+  .footer { text-align:center; padding:28px; color:#c7c7cc; font-size:11px; }
+
+  @media (max-width:600px) {
+    .header h1 { font-size:22px; }
+    .search-box input { font-size:15px; padding:13px 14px; }
+    .search-box button { font-size:14px; padding:13px 14px; }
+    .poi-grid { grid-template-columns:1fr; }
+    .stn-card { flex-wrap:wrap; }
+    .badges { margin-left:0; width:100%; margin-top:8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🚇 深圳地铁周边探索</h1>
+  <p>查查地铁站周边有什么好吃好玩好去处</p>
+</div>
+
+<div class="search-wrap">
+  <div class="search-box">
+    <input type="text" id="q" placeholder="输入站名，如：高新园、车公庙…" autocomplete="off">
+    <button id="btn" onclick="search()">🔍 探索</button>
+  </div>
+  <div class="ac-drop" id="ac"></div>
+</div>
+
+<div class="loading" id="load"><div class="spinner"></div><p id="loadText">搜索中…</p></div>
+<div class="err" id="err"></div>
+<div class="results" id="res">
+  <div class="stn-card" id="stnCard"></div>
+  <div class="cat-pills" id="pills"></div>
+  <div id="sections"></div>
+</div>
+<div class="footer">数据来源：高德地图 · 仅供出行参考</div>
+
+<script>
+// ── Config ──────────────────────────
+const AMAP_KEY = 'f559efabcacaafc30b187c13201aedea';
+
+const CATS = [
+  { id:'fitness', icon:'🏋️', name:'健身', kw:['乐刻','超级猩猩','Keep健身','威尔仕','中航健身','古德菲力'], types:'080700|080600' },
+  { id:'coffee', icon:'☕', name:'咖啡', kw:['星巴克','瑞幸咖啡','Manner','M Stand','库迪咖啡','Tims','Peets','Seesaw'], types:'' },
+  { id:'fastfood', icon:'🍔', name:'快餐', kw:['麦当劳','肯德基','汉堡王','塔斯汀','赛百味','达美乐','必胜客','萨莉亚','真功夫','大家乐'], types:'050300' },
+  { id:'dining', icon:'🍜', name:'美食', kw:['太二酸菜鱼','海底捞','椰子鸡','八合里','农耕记','费大厨','点都德','陶陶居'], types:'050000' },
+  { id:'tea', icon:'🧋', name:'奶茶', kw:['喜茶','奈雪的茶','霸王茶姬','蜜雪冰城','古茗','茶百道','沪上阿姨','一点点','CoCo都可'], types:'' },
+  { id:'shopping', icon:'🛍️', name:'购物', kw:['万象天地','万象城','壹方城','海岸城','COCO Park','深业上城','天虹','茂业','益田假日'], types:'060100|060000' },
+  { id:'supermarket', icon:'🛒', name:'超市', kw:['盒马鲜生','山姆会员','Ole','永辉超市','沃尔玛','华润万家','钱大妈','百果园'], types:'060200|060400' },
+  { id:'fun', icon:'🎬', name:'娱乐', kw:['电影院','万达影城','CGV','百老汇','纯K','KTV'], types:'080100|080300' },
+  { id:'life', icon:'🏦', name:'生活', kw:['招商银行','中国银行','工商银行','711便利店','全家便利店','海王星辰'], types:'160100|060200|090100' },
+];
+
+const RADIUS_NEAR = 300, RADIUS_AROUND = 800;
+
+// ── State ───────────────────────────
+let curData = null, curCat = 'all', jsonpIdx = 0;
+
+// ── DOM refs ────────────────────────
+const $q = document.getElementById('q');
+const $btn = document.getElementById('btn');
+const $ac = document.getElementById('ac');
+const $load = document.getElementById('load');
+const $err = document.getElementById('err');
+const $res = document.getElementById('res');
+const $stnCard = document.getElementById('stnCard');
+const $pills = document.getElementById('pills');
+const $sections = document.getElementById('sections');
+const $loadText = document.getElementById('loadText');
+
+// ── JSONP helper ────────────────────
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cb = '_jp' + (jsonpIdx++);
+    const script = document.createElement('script');
+    const sep = url.includes('?') ? '&' : '?';
+    script.src = url + sep + 'callback=' + cb;
+    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 12000);
+    window[cb] = (data) => { cleanup(); resolve(data); };
+    function cleanup() { clearTimeout(timer); delete window[cb]; script.remove(); }
+    script.onerror = () => { cleanup(); reject(new Error('network')); };
+    document.head.appendChild(script);
+  });
+}
+
+function amapApi(path, params = {}) {
+  params.key = AMAP_KEY;
+  const qs = Object.entries(params).map(([k,v]) => k + '=' + encodeURIComponent(v)).join('&');
+  return jsonp('https://restapi.amap.com/v3/' + path + '?' + qs);
+}
+
+// ── Autocomplete ────────────────────
+let acTimer;
+$q.addEventListener('input', () => {
+  clearTimeout(acTimer);
+  const v = $q.value.trim();
+  if (v.length < 1) { $ac.classList.remove('on'); return; }
+  acTimer = setTimeout(() => suggest(v), 300);
+});
+$q.addEventListener('keydown', e => { if (e.key==='Enter') search(); if (e.key==='Escape') $ac.classList.remove('on'); });
+document.addEventListener('click', e => { if (!$ac.contains(e.target) && e.target!==$q) $ac.classList.remove('on'); });
+
+async function suggest(kw) {
+  try {
+    const d = await amapApi('assistant/inputtips', { keywords: kw, city: '深圳', type: '150500' });
+    const items = (d.tips||[]).filter(t => t.location&&t.location.length>5&&!t.name.match(/^\d/));
+    if (!items.length) { $ac.classList.remove('on'); return; }
+    $ac._items = items;
+    $ac.innerHTML = items.map((t,i) => `
+      <div class="ac-item" onclick="pickSugg(${i})">
+        <span class="icon">🚉</span>
+        <span class="name">${esc(t.name)}</span>
+        ${t.district?`<span class="dist">${esc(t.district)}</span>`:''}
+      </div>
+    `).join('');
+    $ac.classList.add('on');
+  } catch(e) { /* silent */ }
+}
+
+function pickSugg(i) {
+  const it = $ac._items[i];
+  $q.value = it.name.replace(/\(地铁站\)|地铁站/g,'');
+  $ac.classList.remove('on');
+  search();
+}
+
+// ── Main Search ─────────────────────
+async function search() {
+  const station = $q.value.trim();
+  if (!station) return;
+
+  $ac.classList.remove('on'); $err.classList.remove('on'); $res.classList.remove('on');
+  $load.classList.add('on'); $btn.disabled = true;
+  $loadText.innerHTML = `正在探索 <b>${esc(station)}</b> 周边…`;
+
+  try {
+    // 1) Geocode
+    let geo = null;
+    for (const addr of [`深圳地铁${station}`, `${station}站`, station]) {
+      const d = await amapApi('geocode/geo', { address: addr, city: '深圳' });
+      if (d.status==='1' && d.geocodes?.length) {
+        const g = d.geocodes[0];
+        const [lng,lat] = g.location.split(',').map(Number);
+        geo = { lng, lat, addr: g.formatted_address||addr, adcode: g.adcode }; break;
+      }
+    }
+    if (!geo) throw new Error(`未找到「${station}」站，请尝试更完整的站名`);
+
+    // 2) Search all categories
+    const cats = [];
+    for (const cat of CATS) {
+      $loadText.innerHTML = `正在搜 <b>${esc(station)}</b> 周边的${cat.icon} ${cat.name}…`;
+      const pois = [];
+
+      // Search by keywords (limit to 3 per category to be fast)
+      const kwBatch = cat.kw.slice(0, 5);
+      for (const kw of kwBatch) {
+        try {
+          const d = await amapApi('place/around', { location: `${geo.lng},${geo.lat}`, radius: RADIUS_AROUND, keywords: kw, offset: 10 });
+          if (d.status==='1' && d.pois) {
+            for (const p of d.pois) {
+              if (!pois.find(x => x.name===p.name)) {
+                pois.push({ name:p.name, addr:p.address||'', dist:parseInt(p.distance)||0, type:p.type||'' });
+              }
+            }
+          }
+        } catch(e) { /* skip failed keyword */ }
+      }
+
+      // Search by type code
+      if (cat.types) {
+        try {
+          const d = await amapApi('place/around', { location: `${geo.lng},${geo.lat}`, radius: RADIUS_AROUND, types: cat.types, offset: 15 });
+          if (d.status==='1' && d.pois) {
+            for (const p of d.pois) {
+              if (!pois.find(x => x.name===p.name)) {
+                pois.push({ name:p.name, addr:p.address||'', dist:parseInt(p.distance)||0, type:p.type||'' });
+              }
+            }
+          }
+        } catch(e) { /* skip */ }
+      }
+
+      pois.sort((a,b) => a.dist - b.dist);
+      cats.push({
+        id: cat.id, name: cat.name, icon: cat.icon,
+        near: pois.filter(p => p.dist <= RADIUS_NEAR),
+        around: pois.filter(p => p.dist > RADIUS_NEAR && p.dist <= RADIUS_AROUND),
+        total: pois.length,
+      });
+    }
+
+    curData = { station: { name: station, addr: geo.addr, lng: geo.lng, lat: geo.lat }, cats };
+    curCat = 'all';
+    render();
+    $res.classList.add('on');
+    $res.scrollIntoView({ behavior:'smooth' });
+  } catch(e) {
+    $err.textContent = e.message || '搜索失败';
+    $err.classList.add('on');
+  } finally {
+    $load.classList.remove('on');
+    $btn.disabled = false;
+  }
+}
+
+// ── Render ──────────────────────────
+function render() {
+  const d = curData;
+  const totalNear = d.cats.reduce((s,c) => s+c.near.length, 0);
+  const totalAr = d.cats.reduce((s,c) => s+c.around.length, 0);
+
+  $stnCard.innerHTML = `
+    <div class="emoji">🚉</div>
+    <div><h2>${esc(d.station.name)}</h2><div class="addr">${esc(d.station.addr)}</div></div>
+    <div class="badges">
+      <span class="badge near">🟢 上盖(${totalNear})</span>
+      <span class="badge around">🔵 周边(${totalAr})</span>
+    </div>`;
+
+  $pills.innerHTML = `
+    <div class="pill${curCat==='all'?' on':''}" onclick="fil('all')">全部 <span class="n">(${totalNear+totalAr})</span></div>
+    ${d.cats.map(c => `
+      <div class="pill${curCat===c.id?' on':''}" onclick="fil('${c.id}')">${c.icon} ${c.name} <span class="n">(${c.total})</span></div>
+    `).join('')}`;
+
+  renderSections();
+}
+
+function fil(catId) {
+  curCat = catId;
+  document.querySelectorAll('.pill').forEach(p => p.classList.toggle('on', p.textContent.includes(catId==='all'?'全部':catId)));
+  renderSections();
+}
+
+function renderSections() {
+  const cats = curCat==='all' ? curData.cats : curData.cats.filter(c => c.id===curCat);
+  let h = '';
+  cats.forEach(c => {
+    h += `<div class="cat-sec"><h3>${c.icon} ${c.name}</h3>`;
+    if (c.near.length) {
+      h += `<div class="zone-tag near">🟢 上盖 (0-300m)</div><div class="poi-grid">${c.near.map(p => poiHtml(p,'near')).join('')}</div>`;
+    }
+    if (c.around.length) {
+      h += `<div class="zone-tag around">🔵 周边 (300-800m)</div><div class="poi-grid">${c.around.map(p => poiHtml(p,'around')).join('')}</div>`;
+    }
+    if (!c.near.length && !c.around.length) h += `<div class="empty">附近暂未发现${c.name}设施 🫤</div>`;
+    h += `</div>`;
+  });
+  if (cats.every(c => !c.near.length && !c.around.length)) h = `<div class="empty" style="padding:40px">这个站附近比较安静，没找到太多设施 🤔</div>`;
+  $sections.innerHTML = h;
+}
+
+function poiHtml(p, zone) {
+  const icons = { '麦当劳':'🍔','肯德基':'🍗','汉堡王':'🍔','赛百味':'🥪','星巴克':'☕','瑞幸':'☕',
+    '喜茶':'🧋','奈雪':'🧋','霸王茶姬':'🧋','蜜雪冰城':'🍦','乐刻':'🏋️','超级猩猩':'🏋️',
+    '海底捞':'🫕','太二':'🐟','八合里':'🥩','万象':'🏬','COCO':'🏬','壹方城':'🏬','海岸城':'🏬',
+    '盒马':'🛒','山姆':'🛒','电影院':'🎬','万达':'🎬','711':'🏪','全家':'🏪' };
+  let icon = '📍';
+  for (const [k,v] of Object.entries(icons)) { if (p.name.includes(k)) { icon=v; break; } }
+  const cls = p.dist<=300?'near':'around';
+  return `<div class="poi-card">
+    <span class="p-emoji">${icon}</span>
+    <div class="p-info"><div class="p-name" title="${esc(p.name)}">${esc(p.name)}</div><div class="p-addr" title="${esc(p.addr)}">${esc(p.addr)}</div></div>
+    <span class="p-dist ${cls}">${p.dist}m</span>
+  </div>`;
+}
+
+function esc(s) {
+  const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+}
+</script>
+</body>
+</html>
